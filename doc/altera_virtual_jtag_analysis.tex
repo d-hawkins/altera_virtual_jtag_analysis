@@ -1,0 +1,2276 @@
+
+\documentclass[10pt,twoside]{article}
+
+% Math symbols
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+% Headers/Footers
+\usepackage{fancyhdr}
+
+% Colors
+\usepackage[usenames,dvipsnames]{color}
+
+% Importing and manipulating graphics
+\usepackage{graphicx}
+\usepackage{subfig}
+\usepackage{lscape}
+
+% Misc packages
+\usepackage{verbatim}
+\usepackage{dcolumn}
+\usepackage{ifpdf}
+\usepackage{enumerate}
+
+% PDF Bookmarks and hyperref stuff
+\usepackage[
+  bookmarks=true,
+  bookmarksnumbered=true,
+  colorlinks=true,
+  filecolor=blue,
+  linkcolor=blue,
+  urlcolor=blue,
+  hyperfootnotes=true
+  citecolor=blue
+]{hyperref}
+
+% Improved citation handling
+% (include after the hyperref stuff)
+\usepackage{cite}
+
+% Pretty-print code
+\usepackage{listings}
+
+% -----------------------------------------------------------------
+% Setup the margins
+% -----------------------------------------------------------------
+% Footer Template
+
+% Set left margin - The default is 1 inch, so the following
+% command sets a 1.25-inch left margin.
+\setlength{\oddsidemargin}{0.25in}
+\setlength{\evensidemargin}{0.25in}
+
+% Set width of the text - What is left will be the right
+% margin. In this case, right margin is
+% 8.5in - 1.25in - 6in = 1.25in.
+\setlength{\textwidth}{6in}
+
+% Set top margin - The default is 1 inch, so the following
+% command sets a 0.75-inch top margin.
+%\setlength{\topmargin}{-0.25in}
+
+% Set height of the header
+\setlength{\headheight}{0.3in}
+
+% Set vertical distance between the header and the text
+\setlength{\headsep}{0.2in}
+
+% Set height of the text
+\setlength{\textheight}{8.5in}
+
+% Set vertical distance between the text and the
+% bottom of footer
+\setlength{\footskip}{0.4in}
+
+% -----------------------------------------------------------------
+% Allow floats to take up more space on a page.
+% -----------------------------------------------------------------
+
+% see page 142 of the Companion for this stuff and the
+% documentation for the fancyhdr package
+\renewcommand{\textfraction}{0.05}
+\renewcommand{\topfraction}{0.95}
+\renewcommand{\bottomfraction}{0.95}
+% dont make this too small
+\renewcommand{\floatpagefraction}{0.35}
+\setcounter{totalnumber}{5}
+
+%-----------------------------------------------------------
+% Abbreviated symbols
+%-----------------------------------------------------------
+\newcommand{\sinc}{\ensuremath{\,\text{sinc}}}
+\newcommand{\rect}{\ensuremath{\,\text{rect}}}
+
+% =================================================================
+% The document starts here
+% =================================================================
+%
+\begin{document}
+\title{Altera Virtual JTAG Interface}
+\author{D. W. Hawkins (dwh@ovro.caltech.edu)\\
+        $$Revision: 1.6 $$}
+\date{\today}
+%\date{April 25, 2006}
+\maketitle
+
+% No header/footer on the first page
+\thispagestyle{empty}
+
+\tableofcontents
+
+% start the intro on an odd page
+\cleardoublepage
+%\clearpage
+
+% Set up the header/footer
+\pagestyle{fancy}
+\lhead{Altera Virtual JTAG Interface}
+\chead{}
+\rhead{\today}
+\lfoot{}
+\cfoot{}
+\rfoot{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0.4pt}
+
+% Set the listings package language to Tcl
+\lstset{language=Tcl}
+
+% =================================================================
+\section{Introduction}
+% =================================================================
+
+Altera provides a suite of System-Level Debugging (SLD) 
+Intellectual Property (IP) cores to aid in FPGA debugging.
+These cores provide access to the programmable logic fabric
+of the FPGA via the FPGA JTAG interface.
+The suite of tools is described in the Quartus II Handbook,
+Volume 3, Section 4, {\em System Debugging 
+Tools}~\cite{Altera_Quartus_Handbook_2010}.
+The suite of tool includes;
+%
+\begin{itemize}
+\item System Console
+\item Transceiver Toolkit
+\item Signal Tap II Logic Analyzer
+\item Signal Probe
+\item Logic Analyzer Interface (LAI)
+\item In-System Sources and Probes
+\item In-System Memory Content Editor
+\item Virtual JTAG Interface
+\end{itemize}
+%
+Chapter 13 of the handbook provides an overview of
+these tools, while Chapters 14 through 20 describe all but
+the Virtual JTAG component in detail.
+These debug tools consists of a hardware component, and
+Tcl procedures for interfacing to the hardware. 
+The hardware consists of user-defined instances of
+debug cores, along with a JTAG hub component that 
+coordinates access. The presence of the hub component 
+is transparent to the user (it is abstracted by the Tcl
+procedures).
+
+A typical application of these cores is the
+development of new components. For example, consider the
+development of a new Altera Avalon bus slave component. 
+The component can be tested by creating an SOPC Builder
+system design containing an JTAG-to-Avalon Master (or JTAG-to-Avalon 
+Streaming) interface and the component.
+Transactions to the component can then be generated using
+System Console Tcl procedures. A Signal Tap II logic analyzer
+instance could be added to the design to capture the
+Avalon bus transactions.
+
+The Virtual JTAG Interface (VJI) component provides the
+lowest-level JTAG access of all the debug cores. Developing
+custom debug components using this interface
+provides the maximum flexibility to a user, eg., a user can
+define their own JTAG-to-Avalon interfaces and include
+features not available in the Altera provided core.
+The Virtual JTAG component is described in;
+%
+\begin{itemize}
+\item The Virtual JTAG Megafunction User 
+Guide~\cite{Altera_Virtual_JTAG_2008}
+\item Quartus II help. From the Contents, see;
+\begin{itemize}
+\item {\em Using Altera Megafunctions$\rightarrow$Megafunctions/LPM},\\
+\rule{5mm}{0pt}{\em JTAG-accessible Extensions MegaWizards and MegaFunctions}
+\item {\em Devices and Adapters$\rightarrow$API Functions for Tcl},\\
+\rule{5mm}{0pt}\verb+::quartus::jtag 1.0+
+\end{itemize}
+\end{itemize}
+%
+The Virtual JTAG User's Guide contains the majority of information
+required to use the Virtual JTAG interface. However, the Altera
+documentation has errors, and the simulation models are not useful
+for automated component testing.
+
+This document provides an analysis of the Altera Virtual JTAG
+documentation, simulation, and synthesis results. It provides a
+clear description of how the interface works, and provides a
+simulation model that can be used for automated component testing.
+A general-purpose Virtual JTAG component is developed that allows
+custom device identification. Example designs are provided.
+
+\clearpage
+% =================================================================
+\section{Virtual JTAG Component Analysis}
+% =================================================================
+
+This section analyzes Altera Virtual JTAG component instantiation,
+simulation, and synthesis. The section starts by describing
+Virtual JTAG component instantiation. The simulation results
+for that component show numerous problems with the Altera simulation
+model. Tcl procedures for performing JTAG accesses are then
+described, and used to generate hardware transaction sequences.
+The hardware transaction sequences are captured using an external 
+logic analyzer and a SignalTap II logic analyzer. The traces are
+used to show the problems with the Altera simulation model, and 
+are used in Section~\ref{sec:simulation_model} to develop a 
+functionally correct simulation model.
+The section ends with a description of the Altera hub and
+node instruction encoding, and the effect on that encoding when 
+designs contain multiple SLD components.
+
+% -----------------------------------------------------------------
+\subsection{Component Instantiation}
+% -----------------------------------------------------------------
+\label{sec:sld_virtual_jtag_instantiation}
+
+The Virtual JTAG core can be instantiated using the Quartus II
+MegaWizard ({\em Tools$\rightarrow$MegaWizard Plug-In Manager})
+or by direct instantiation (see the Quartus II help for
+the template). 
+%
+An Altera DE2 board Virtual JTAG test configuration was
+created as follows;
+%
+\begin{itemize}
+\item Using the procedure described in Appendix~\ref{app:source_code},
+a new project for the DE2 board was created. The project folder
+was named \verb+sld_vjtag_to_gpio+, with top-level component
+\verb+de2.vhd+.
+
+The \verb+sld_vjtag_to_gpio+ top-level design, \verb+de2.vhd+, contains an
+\verb+sld_virtual_jtag+ instance connected to the DE2 board LEDs,
+hexadecimal displays, switches, and the GPIO (for external
+logic analyzer transaction capture). This section
+describes how the Virtual JTAG instance was instantiated;
+see the source code for details on the connections to
+the DE2 board I/O.
+
+\item A Virtual JTAG instance was created as follows;
+\begin{enumerate}
+\item A new Quartus project was created in a temporary work folder
+(the project targeted the Cyclone II on the DE2 board).
+\item The MegaWizard was used to create a Virtual JTAG instance
+named \verb+vji+, with the settings shown in 
+Figure~\ref{fig:sld_virtual_jtag_megawizard_pg3}, i.e.,
+\begin{itemize}
+\item Virtual instruction register width of 3.
+\item Enable the primitive JTAG state signal ports.
+\end{itemize}
+\item No other MegaWizard defaults were changed.
+\item Click `Finish' to have the \verb+vji.vhd+ instance file
+created.
+\end{enumerate}
+%
+\item The \verb+sld_virtual_jtag+ instance from \verb+vji.vhd+
+was then copied-and-pasted into \verb+de2.vhd+
+(do not delete the Quartus work folder, as the MegaWizard
+will be used to create simulation stimulus in the next section). 
+\item The library definition for the \verb+sld_virtual_jtag+
+component was added to \verb+de2.vhd+, i.e., 
+%
+\begin{verbatim}
+library altera_mf;
+use altera_mf.altera_mf_components.all;
+\end{verbatim}
+%
+\item Internal signals were attached to all of the \verb+sld_virtual_jtag+
+ports, and those signals were connected to the \verb+gpio_a+ and
+\verb+gpio_b+ ports (the DE2 board 2$\times$20 100-mil headers),
+so that the signals can be probed with an external logic
+analyzer. (See the \verb+de2.vhd+ source for the JTAG signal to GPIO
+assignments).
+\item The Virtual instruction register bus from the Virtual
+JTAG component was connected to GPIO bits and to the LEDs
+(so that Tcl commands can change the LED state).
+\item The Virtual instruction register bus to the Virtual
+JTAG component was connected to the DE2 switches
+(so that Tcl commands can read the switch state).
+\item The JTAG TDO signal was configured to toggle on
+the rising-edge of the JTAG TCK signal.
+\item The design was synthesized.
+\end{itemize}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.8\textwidth]
+  {figures/sld_virtual_jtag_megawizard_pg3.jpg}
+  \caption{Altera Virtual JTAG component configuration.}
+  \label{fig:sld_virtual_jtag_megawizard_pg3}
+\end{figure}
+
+\clearpage
+% -----------------------------------------------------------------
+\subsection{Altera Simulation Model Analysis}
+% -----------------------------------------------------------------
+\label{sec:sld_virtual_jtag_simulation}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.8\textwidth]
+  {figures/sld_virtual_jtag_megawizard_pg4.jpg}
+  \caption{Altera Virtual JTAG simulation stimulus configuration.}
+  \label{fig:sld_virtual_jtag_megawizard_pg4}
+\end{figure}
+
+The Virtual JTAG component has simulation support, however, the
+waveforms the simulation model generates are \textcolor{red}{incorrect}, making
+the simulation feature useless. Even if simulation worked, the
+transaction support is so basic, that it would
+be barely useful; the model supports the generation of
+statically-defined, write-only, Virtual IR-shift and Virtual
+DR-shift operations using 
+generics\footnote{The stimulus could conceivably be changed during
+run-time using multiple runs of Modelsim's {\tt vsim} with
+different generics each run, however, this is not a standard
+way to construct a self-verifying testbench.}. The fact that the
+stimulus is write-only makes writing a self-verifying testbench 
+impossible, as there is no read-back method.
+%
+This section describes how to create stimulus and contains figures
+showing the simulation IR-shift and DR-shift operations. The
+simulation waveforms are annotated to show the model problems, 
+relative to the hardware measurements
+performed in the next section.
+
+Figure~\ref{fig:sld_virtual_jtag_megawizard_pg4} shows the MegaWizard
+simulation stimulus page; use the MegaWizard to edit the previously
+generated instance of the Virtual JTAG component and enter the
+values as shown in the figure, then regenerate the VHDL files
+(by clicking `Finish'). The generics in the original
+instance (copied to the \verb+de2.vhd+ file) were;
+%
+\begin{verbatim}
+sld_sim_action          => "",
+sld_sim_n_scan          => 0,
+sld_sim_total_length    => 0,
+\end{verbatim}
+%
+The addition of the stimulus changes the \verb+vji.vhd+
+generics to;
+%
+\begin{verbatim}
+sld_sim_action => "((1,1,1,3),(1,1,2,3),(1,1,3,3),(1,2,4,8),(1,2,5,8),(1,2,6,8))",
+sld_sim_n_scan => 6,
+sld_sim_total_length => 33,
+\end{verbatim}
+%
+The stimulus format is; delay between transactions (in units of 1ms),
+operation (1 = IR-shift, 2 = DR-shift), IR/DR value, and IR/DR bit-width.
+
+\clearpage
+The Virtual JTAG instance created in \verb+vji.vhd+ contains the stimulus
+via the generics, so the design can be simulated directly without
+wrapping the component in a testbench (the input ports \verb+tdo+
+and \verb+ir_in[2:0]+ ports will be undriven so the Modelsim simulation
+will show these signals as unknown/undriven). Figures~\ref{fig:vji_reset_tb} 
+through~\ref{fig:vji_shift_dr_tb_b} show time segments from
+the simulation. The figures show; the JTAG waveforms, the JTAG TAP one-hot
+state machine encoded signals, the Virtual JTAG one-hot state
+machine encoded signals, and the Virtual Instruction Register 
+parallel input/output ports. Comments on the start-up and
+Virtual IR-shift sequences are;
+%
+\begin{itemize}
+%
+\item Figure~\ref{fig:vji_reset_tb} shows the simulation waveforms 
+after power-on. The waveforms show a JTAG TAP reset sequence 
+(\verb+tms+ high for six \verb+tck+ rising-edges), followed
+by a JTAG TAP instruction phase, containing 10-bits of zeros.
+There is no Altera device 10-bit JTAG instruction code of
+\verb+00_0000_0000b = 000h+, so this sequence is not useful.
+
+The stimulus leaves the JTAG TAP state-machine in the Update-IR state
+(the one-hot JTAG state \verb+jtag_state_uir+ remains asserted
+at the end of the simulation segment).
+%
+\item Figure~\ref{fig:vji_shift_ir_tb_a} shows the simulation waveforms
+for the first Virtual IR-shift stimulus, where the stimulus value for the
+IR shift was 1. The stimulus should consist of three JTAG TAP
+shift sequences;
+%
+\begin{itemize}
+\item JTAG TAP IR-shift of 10-bits \verb+USER1 = 00_0000_1110b = 00Eh+
+\item JTAG TAP DR-shift of 5-bits \verb+VIR_CAPTURE = 0_1011b = 0Bh+
+\item JTAG TAP DR-shift of 5-bits \verb+VIR_USER = 1_0001b = 11h+
+\end{itemize}
+%
+where the last two sequences are 5-bit Virtual IR-shift codes
+(Section~\ref{sec:vir_encoding} discusses the bit
+encoding of the Virtual IR-shift codes).
+The three JTAG TAP shift sequences are present in the simulation,
+however, the TDI activity is incorrect, and the last DR-shift
+phase (the Virtual IR-shift user instruction phase, \verb+VIR_USER+)
+is missing a shift phase.
+
+The stimulus leaves the JTAG TAP state-machine in the Update-DR state
+and the Virtual JTAG state-machine in the Update-IR state
+(the one-hot JTAG state \verb+jtag_state_udr+ and Virtual JTAG
+state \verb+vjtag_state_uir+ remain asserted at the end of the
+simulation segment).
+
+The Virtual JTAG instruction register updates to \verb+1+ when
+the Virtual JTAG state machine enters the Update-IR state.
+%
+\item Figure~\ref{fig:vji_shift_ir_tb_b} shows the simulation waveforms
+for the second Virtual IR-shift stimulus, where the stimulus value for the
+IR shift was 2. Since the JTAG TAP instruction \verb+USER1+ was shifted
+in during the first Virtual IR-shift stimulus, this instruction phase
+is not required for the second stimulus, so the second stimulus waveforms
+consists of the last two shift sequences seen in the
+waveforms of the first stimulus, i.e., \verb+VIR_CAPTURE+ followed by 
+\verb+VIR_USER+. As with the first Virtual IR-shift sequence,
+the \verb+VIR_USER+ sequence is missing a shift phase.
+
+The Virtual JTAG instruction register updates to \verb+2+ when
+the Virtual JTAG state machine enters the Update-IR state.
+%
+\item The third Virtual IR-shift stimulus\footnote{Not shown in this
+document. Run the Modelsim simulation to see it.} results in 
+waveforms similar to the second Virtual IR-shift 
+stimulus, with the Virtual JTAG instruction register updating
+to \verb+3+ at the end of the stimulus sequence
+(prior to the Virtual DR-shift stimulus).
+%
+\end{itemize}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\textwidth]
+  {figures/vji_reset_tb.pdf}
+  \caption{Altera Virtual JTAG simulation; power-on sequence.}
+  \label{fig:vji_reset_tb}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\textwidth]
+  {figures/vji_shift_ir_tb_a.pdf}
+  \caption{Altera Virtual JTAG simulation; first IR-shift sequence
+(stimulus value of 1).}
+  \label{fig:vji_shift_ir_tb_a}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\textwidth]
+  {figures/vji_shift_ir_tb_b.pdf}
+  \caption{Altera Virtual JTAG simulation; second IR-shift sequence
+(stimulus value of 2).}
+  \label{fig:vji_shift_ir_tb_b}
+\end{figure}
+
+\clearpage
+\noindent Comments on the Virtual DR-shift stimulus are;
+\begin{itemize}
+\item Figure~\ref{fig:vji_shift_dr_tb_a} shows the simulation waveforms
+for the first Virtual DR-shift stimulus, where the stimulus value for the
+8-bit Virtual DR-shift was 4. The stimulus should consists of two JTAG TAP
+shift sequences;
+%
+\begin{itemize}
+\item JTAG TAP IR-shift of 10-bits \verb+USER0 = 00_0000_1100b = 00Ch+
+\item JTAG TAP DR-shift of 8-bits \verb+VDR_USER = 0000_0100b = 04h+
+\end{itemize}
+%
+The two JTAG TAP shift sequences are present in the simulation,
+however, there are a couple of problems; there is an extra shift
+clock during the instruction phase, and the TDI activity is incorrect.
+The TDI signal has no activity during the instruction phase, and 
+during the DR-shift phase, \verb+tdi+ asserts during the wrong bit
+position (based on the other DR-shift stimulus, it appears that the
+DR-shift value is being shifted out one clock late).
+
+The stimulus leaves the JTAG TAP and Virtual JTAG state-machines
+in the Update-DR state
+(the one-hot states \verb+jtag_state_udr+ and \verb+vjtag_state_udr+ 
+remain asserted at the end of the
+simulation segment).
+%
+\item Figure~\ref{fig:vji_shift_dr_tb_b} shows the simulation waveforms
+for the second Virtual DR-shift stimulus, where the stimulus value for the
+8-bit Virtual DR-shift was 5. 
+Since the JTAG TAP instruction \verb+USER0+ was shifted
+in during the first Virtual DR-shift stimulus, this instruction phase
+is not required for the second stimulus, so the second stimulus waveforms
+consists of the last shift sequence seen in the
+waveforms of the first stimulus, i.e., \verb+VDR_USER+. 
+As with the first Virtual DR-shift stimulus,
+the Virtual DR-shift value, \verb+VDR_USER = 05h+, is shifted
+out one clock late.
+%
+\item The third Virtual DR-shift stimulus\footnote{Not shown in this
+document. Run the Modelsim simulation to see it.} results in 
+waveforms similar to the second Virtual DR-shift 
+stimulus, with the Virtual DR-shift value, \verb+VDR_USER = 06h+,
+shifted out one clock late
+%
+\item The simulation ends with the JTAG TAP being reset
+(\verb+tms+ high for six \verb+tck+ rising-edges).
+%
+\end{itemize}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\textwidth]
+  {figures/vji_shift_dr_tb_a.pdf}
+  \caption{Altera Virtual JTAG simulation; first DR-shift sequence
+(stimulus value of 4).}
+  \label{fig:vji_shift_dr_tb_a}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\textwidth]
+  {figures/vji_shift_dr_tb_b.pdf}
+  \caption{Altera Virtual JTAG simulation; second DR-shift sequence
+(stimulus value of 5).}
+  \label{fig:vji_shift_dr_tb_b}
+\end{figure}
+
+\clearpage
+% -----------------------------------------------------------------
+\subsection{Altera Tcl procedures for JTAG access}
+% -----------------------------------------------------------------
+\label{sec:tcl_procedures}
+
+Virtual JTAG communications are performed using procedures
+from the \verb+::quartus::jtag 1.0+ Tcl package. 
+Table~\ref{tab:quartus_jtag} summarizes the Tcl procedures available
+in the package. Detailed information on the Tcl procedures are 
+provided in the Quartus II help 
+({\em Contents$\rightarrow$Devices and Adapters$\rightarrow$API Functions for Tcl}),
+in the \verb+quartus_stp+ Tcl console (use \verb+-help+ or
+\verb+-long_help+ as an option to the Tcl procedure), and
+in the Quartus II scripting manual~\cite{Altera_Tcl_Manual_2009}.
+Figure~\ref{fig:tcl_open_close} shows the open/close sequence
+for a single USB controller connected to a single device JTAG chain,
+eg., the Altera DE2 board with embedded USB-Blaster and Cyclone II 
+device.
+The Quartus help recommends holding the JTAG lock for the minimum
+time possible to allow other applications to access the device.
+
+The JTAG IR-shift and DR-shift procedures require some 
+caution with their use, the following subtleties need to be observed;
+%
+\begin{itemize}
+\item The \verb+device_ir_shift+ and \verb+device_virtual_ir_shift+
+procedure \verb+-ir_value+ argument is a Tcl numeric value,
+eg., the JTAG TAP \verb+USER1+ instruction can be issued as
+decimal 14, hexadecimal 0xE, or octal 016
+(Tcl commands \verb+expr 0xE+ and \verb+expr 0x16+ both return 14).
+%
+\item The \verb+device_dr_shift+ and \verb+device_virtual_dr_shift+
+procedure \verb+-dr_value+ argument is a binary string by default.
+When the \verb+-value_in_hex+ option is used, the 
+\verb+-dr_value+ argument is a hexadecimal string {\em without}
+a leading \verb+0x+ prefix. The length of the binary or hexadecimal string
+must be sufficient to match the number of bits indicated by
+the \verb+-length+ argument.
+%
+\item If a JTAG or Virtual JTAG shift command is issued with 
+the option \verb+-no_captured_ir_value+ or \verb+-no_captured_dr_value+,
+{\em no activity} will occur on the JTAG interface until a
+command without this option or a \verb+device_unlock+ command
+is issued.
+\end{itemize}
+%
+An additional subtlety comes from Tcl; 
+Figure~\ref{fig:tcl_integer_support} demonstrates that Tcl supports 
+32-bit signed integers. Arguments to the Tcl procedures for JTAG and 
+Virtual JTAG access reflect this limitation; \verb+-ir_value+ is an integer,
+whereas \verb+-dr_value+ is either a binary or hexadecimal string
+(allowing for larger than 32-bit values).
+Since the argument to a Virtual IR-shift procedure is limited to
+32-bits, the \verb+sld_virtual_jtag+ component IR width, \verb+SLD_IR_WIDTH+,
+is also limited to 32-bits. At the hardware level, a 32-bit
+Virtual IR-shift instruction has address bits prepended to
+the instruction, and is issued as a JTAG DR-shift instruction
+(see Section~\ref{sec:vir_encoding} for details on the instruction encoding).
+
+The sequence of JTAG TAP transactions that are issued for
+a Virtual JTAG transaction depends on the previously issued
+transactions; this can be seen in the simulations in
+Section~\ref{sec:sld_virtual_jtag_simulation}, and in the 
+logic analyzer traces in Sections~\ref{sec:external_logic_analyzer_traces}
+and~\ref{sec:signaltap_logic_analyzer_traces}.
+The sequence of JTAG TAP transactions that are issued for
+a Virtual JTAG transaction can be reported by the 
+Virtual JTAG Tcl procedures by adding the option
+\verb+-show_equivalent_device_ir_dr_shift+.
+Figures~\ref{fig:tcl_shift_ir} and~\ref{fig:tcl_shift_dr}
+show the Virtual IR-shift and DR-shift sequences that result
+in different JTAG transactions. These commands are used
+in the next sections to generate JTAG transactions that
+are captured via logic analyzer.
+
+\clearpage
+\begin{table}[p]
+\caption{Quartus JTAG ({\tt ::quartus::jtag 1.0}) Tcl procedures.}
+\label{tab:quartus_jtag}
+\begin{center}
+\begin{tabular}{|l|p{9cm}|}
+\hline
+Command & Description\\
+\hline\hline
+&\\
+\verb+get_hardware_names+ & List the JTAG hardware, eg. USB-Blaster.\\
+&\\
+\verb+get_device_names+ & List the devices on a JTAG bus.\\
+&\\
+\verb+open_device+ & Access a device on a JTAG bus.\\
+\verb+close_device+ & End access to a device.\\
+&\\
+\verb+device_lock+   & Lock the JTAG interface while accessing a device.\\
+\verb+device_unlock+ & Release the JTAG interface lock.\\
+&\\
+\verb+device_run_test_idle+ & Move the JTAG TAP to run-test/idle.\\
+\verb+device_dr_shift+      & Issue a JTAG TAP DR-shift sequence.\\
+\verb+device_ir_shift+      & Issue a JTAG TAP IR-shift sequence.\\
+&\\
+\verb+device_virtual_dr_shift+ & Issue a Virtual JTAG DR-shift sequence.\\
+\verb+device_virtual_ir_shift+ & Issue a Virtual JTAG IR-shift sequence.\\
+&\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+
+% listings package
+%   The pretty-printing was not formatting the comments correctly.
+%   The word 'first' was getting highlighted as a keyword.
+%   For now, just use verbatim. Actually, verbatim did not work
+%   with the framebox, so just use \tt inside the minipage.
+%   Grr, but then the hash and underscores need to be escaped.
+%   Ok, skip the framebox around this one then!
+%
+\begin{figure}[p]
+\begin{center}
+\begin{minipage}{100mm}
+%\begin{lstlisting}
+\begin{verbatim}
+proc jtag_open {} {
+    # Get the list of JTAG controllers
+    set hardware_names [get_hardware_names]
+
+    # Select the first JTAG controller
+    set hardware_name [lindex $hardware_names 0]
+
+    # Get the list of FPGAs in the JTAG chain
+    set device_names [get_device_names\
+        -hardware_name $hardware_name]
+
+    # Select the first FPGA
+    set device_name [lindex $device_names 0]
+
+    puts "\nJTAG: $hardware_name, FPGA: $device_name"
+    open_device -hardware_name $hardware_name\
+        -device_name $device_name
+}
+
+proc jtag_close {} {
+    close_device
+}
+\end{verbatim}
+%\end{lstlisting}
+\end{minipage}
+\end{center}
+\caption{Tcl procedures for open and close.}
+\label{fig:tcl_open_close}
+\end{figure}
+
+\begin{figure}[t]
+\begin{center}
+\begin{minipage}{100mm}
+%\begin{lstlisting}
+\begin{verbatim}
+proc print_ints {width} {
+    for {set i 0} {$i < $width} {incr i} {
+        set val [expr {1<<$i}];
+        puts "[format "%2d: %9X %12d" $i $val $val]"
+    }
+}
+\end{verbatim}
+%\end{lstlisting}
+\end{minipage}
+
+(a)
+
+\vskip5mm
+\begin{minipage}{60mm}
+\begin{verbatim}
+tcl> print_ints 35
+ 0:         1            1
+ 1:         2            2
+ 2:         4            4
+ 3:         8            8
+ 4:        10           16
+ 5:        20           32
+ 6:        40           64
+ 7:        80          128
+ 8:       100          256
+ 9:       200          512
+10:       400         1024
+11:       800         2048
+12:      1000         4096
+13:      2000         8192
+14:      4000        16384
+15:      8000        32768
+16:     10000        65536
+17:     20000       131072
+18:     40000       262144
+19:     80000       524288
+20:    100000      1048576
+21:    200000      2097152
+22:    400000      4194304
+23:    800000      8388608
+24:   1000000     16777216
+25:   2000000     33554432
+26:   4000000     67108864
+27:   8000000    134217728
+28:  10000000    268435456
+29:  20000000    536870912
+30:  40000000   1073741824
+31:  80000000  -2147483648
+32:         0            0
+33:         0            0
+34:         0            0
+tcl>
+\end{verbatim}
+\end{minipage}
+
+(b)
+\end{center}
+\caption{Tcl 32-bit integer support; (a) Tcl procedure
+{\tt print\_ints} to print integer values with widths
+of 1 to {\tt width} bits, and (b) conversion values for 
+widths of 1 to 35-bits. The output values indicate
+that Tcl supports signed 32-bit integers.}
+\label{fig:tcl_integer_support}
+\end{figure}
+
+% quartus_stp Tcl session
+%
+% Note: to get the info text formatted in green, a minipage is used
+% along with the color package. The font is changed to typewriter
+% style, and the info text is changed to green to match the 
+% appearance in quartus_stp. The green text is indented using
+% rule. The indenting could be implemented with hspace, but blank
+% lines would be needed between lines (so that each line was
+% interpreted as a new paragraph).
+%
+\begin{figure}[p]
+\hfil
+\framebox{
+\hspace{1mm}
+\begin{minipage}{130mm}
+\vspace{1mm}
+\tt
+\color{black}
+tcl> jtag\_open\\
+JTAG: USB-Blaster [USB-0], FPGA: @1: EP2C35 (0x020B40DD)\\
+tcl> device\_lock -timeout 10000\\
+tcl> device\_virtual\_ir\_shift -instance\_index 0 -ir\_value 1 
+-show\_equivalent\_device\_ir\_dr\_shift\\
+\color{green}
+Info: Equivalent device ir and dr shift commands\\
+\rule{5mm}{0pt} Info: device\_ir\_shift -ir\_value 14\\
+\rule{5mm}{0pt} Info: device\_dr\_shift -length 5 -dr\_value 0B -value\_in\_hex\\
+\rule{5mm}{0pt} Info: device\_dr\_shift -length 5 -dr\_value 11 -value\_in\_hex\\
+\color{black}
+5\\
+tcl> device\_virtual\_ir\_shift -instance\_index 0 -ir\_value 2 
+-show\_equivalent\_device\_ir\_dr\_shift\\
+\color{green}
+Info: Equivalent device ir and dr shift commands\\
+\rule{5mm}{0pt} Info: device\_dr\_shift -length 5 -dr\_value 0B -value\_in\_hex\\
+\rule{5mm}{0pt} Info: device\_dr\_shift -length 5 -dr\_value 12 -value\_in\_hex\\
+\color{black}
+5\\
+tcl> device\_virtual\_ir\_shift -instance\_index 0 -ir\_value 3 
+-show\_equivalent\_device\_ir\_dr\_shift -no\_captured\_ir\_value\\
+\color{green}
+Info: Equivalent device ir and dr shift commands\\
+\rule{5mm}{0pt} Info: device\_dr\_shift -length 5 -dr\_value 12 -value\_in\_hex\\
+\color{black}
+tcl> device\_unlock\\
+tcl> jtag\_close\\
+tcl>
+\vspace{1mm}
+\end{minipage}
+}\hfil
+\caption{Virtual IR-shift Tcl procedures (using {\tt quartus\_stp}).}
+\label{fig:tcl_shift_ir}
+%\end{figure}
+%
+\vskip5mm
+%
+%\begin{figure}[p]
+\hfil
+\framebox{
+\hspace{1mm}
+\begin{minipage}{130mm}
+\vspace{1mm}
+\tt
+\color{black}
+tcl> jtag\_open\\
+JTAG: USB-Blaster [USB-0], FPGA: @1: EP2C35 (0x020B40DD)\\
+tcl> device\_lock -timeout 10000\\
+tcl> device\_virtual\_dr\_shift -instance\_index 0 -length 8 -dr\_value 04 -value\_in\_hex  
+-show\_equivalent\_device\_ir\_dr\_shift\\
+\color{green}
+Info: Equivalent device ir and dr shift commands\\
+\rule{5mm}{0pt} Info: device\_ir\_shift -ir\_value 12\\
+\rule{5mm}{0pt} Info: device\_dr\_shift -length 8 -dr\_value 04 -value\_in\_hex\\
+\color{black}
+AA\\
+tcl> device\_virtual\_dr\_shift -instance\_index 0 -length 8 -dr\_value 05 -value\_in\_hex  
+-show\_equivalent\_device\_ir\_dr\_shift\\
+\color{green}
+Info: Equivalent device ir and dr shift commands\\
+\rule{5mm}{0pt} Info: device\_dr\_shift -length 8 -dr\_value 05 -value\_in\_hex\\
+\color{black}
+AA\\
+tcl> device\_virtual\_dr\_shift -instance\_index 0 -length 8 -dr\_value 05 -value\_in\_hex  
+-show\_equivalent\_device\_ir\_dr\_shift -no\_captured\_dr\_value\\
+\color{green}
+Info: Equivalent device ir and dr shift commands\\
+\rule{5mm}{0pt} Info: device\_dr\_shift -length 8 -dr\_value 06 -value\_in\_hex\\
+\color{black}
+tcl> device\_unlock\\
+tcl> jtag\_close\\
+tcl>
+\vspace{1mm}
+\end{minipage}
+}\hfil
+\caption{Virtual DR-shift Tcl procedures (using {\tt quartus\_stp}).}
+\label{fig:tcl_shift_dr}
+\end{figure}
+
+\clearpage
+% -----------------------------------------------------------------
+\subsection{External logic analyzer traces}
+% -----------------------------------------------------------------
+\label{sec:external_logic_analyzer_traces}
+
+Virtual JTAG communications are performed using  Tcl
+procedures from the \verb+::quartus::jtag 1.0+ Tcl package 
+issued from the \verb+quartus_stp+ application. 
+Section~\ref{sec:tcl_procedures} discusses the Tcl
+procedures. 
+Figures~\ref{fig:tcl_shift_ir} and~\ref{fig:tcl_shift_dr}
+show the Virtual IR-shift and DR-shift sequences that result
+in different JTAG transactions.
+Figures~\ref{fig:vji_shift_ir_hw_a} through~\ref{fig:vji_shift_dr_hw_b} 
+logic analyzer traces for the IR-shift and DR-shift sequences
+captured from the Altera DE2 board\footnote{The {\tt TDO} signal
+was configured to toggle at each {\tt TCK} rising-edge.}.
+The logic analyzer sequences are;
+%
+\begin{itemize}
+\item Figure~\ref{fig:vji_shift_ir_hw_a} shows an initial Virtual IR-shift
+sequence (after accessing the device), with a user instruction
+value of 1, i.e., the first \verb+device_virtual_ir_shift+ command in
+Figure~\ref{fig:tcl_shift_ir}.
+
+The captured sequence is slightly different than the sequence expected.
+There is an erroneously formed JTAG \verb+BYPASS+ instruction 
+issued prior to the JTAG \verb+USER1+ instruction. Alternatively, this
+sequence could be a JTAG instruction register length detection
+sequence, eg., a single zero followed by ones is shifted into the
+JTAG IR register and the control software detects when the
+zero appears at the TDO output (the \verb+BYPASS+ command
+just happens to be the all-ones instruction). The other minor 
+issue with the captured sequence is that the \verb+TDI+
+signal shows a glitch during the \verb+USER1+ instruction sequence.
+%
+\item Figure~\ref{fig:vji_shift_ir_hw_b} shows a Virtual IR-shift
+sequence, with an instruction value of 2, following a Virtual IR-shift 
+sequence i.e., the second \verb+device_virtual_ir_shift+ command in
+Figure~\ref{fig:tcl_shift_ir}.
+%
+\item Figure~\ref{fig:vji_shift_ir_hw_c} shows a Virtual IR-shift 
+sequence, with an instruction value of 3 and the option \newline
+\verb+-no_captured_ir_value+
+following a Virtual IR-shift sequence, i.e., the third\newline
+\verb+device_virtual_ir_shift+ command in
+Figure~\ref{fig:tcl_shift_ir}.
+%
+\item Figure~\ref{fig:vji_shift_dr_hw_a} shows the first Virtual 
+DR-shift sequence, with a DR value of 0xAA, i.e., the first\newline
+\verb+device_virtual_dr_shift+ command in
+Figure~\ref{fig:tcl_shift_dr} (with the data value changed
+to 0xAA so that the TDI signal would toggle each data bit).
+
+During the JTAG \verb+USER0+ instruction sequence, the \verb+TDI+
+signal shows a glitch (similar to the glitch seen during
+the Virtual IR-shift \verb+USER1+ instruction sequence).
+
+The traces show a logical \textcolor{red}{error} in the hardware;
+there are two Virtual JTAG one-hot state assertions, i.e.,
+both capture-DR (\verb+VS_CDR+) and capture-IR (\verb+VS_CIR+)
+assert during the same clock period. 
+%
+\item Figure~\ref{fig:vji_shift_dr_hw_b} second Virtual DR-shift sequence,
+with a DR value of 0xAA, i.e., the second
+\verb+device_virtual_dr_shift+ command in
+Figure~\ref{fig:tcl_shift_dr} (with the data value changed
+to 0xAA so that the TDI signal would toggle each data bit).
+\end{itemize}
+%
+The logic analyzer captures show that the JTAG sequences issued
+by each Tcl procedure are consistent with the commands reported
+by the option \verb+-show_equivalent_device_ir_dr_shift+.
+The logic analyzer traces also provide the state of the
+JTAG TAP and Virtual JTAG state-machines after each command is 
+issued (the states observed are consistent with the simulation
+states). The logic analyzer waveforms confirm the
+simulation model errors identified in 
+Section~\ref{sec:sld_virtual_jtag_simulation}.
+
+% -----------------------------------------------------------------
+\subsection{SignalTap II logic analyzer traces}
+% -----------------------------------------------------------------
+\label{sec:signaltap_logic_analyzer_traces}
+
+Figures~\ref{fig:vji_shift_ir_stp_a} and~\ref{fig:vji_shift_dr_stp_a}
+show Virtual IR-shift and Virtual DR-shift sequences captured
+using a SignalTap II logic analyzer instance in the DE2 design.
+The traces are very similar to those captured using the external
+logic anayzer. The slight difference, is that the presence of the
+SignalTap II instances changes the Virtual Instruction encoding
+as discussed in Section~\ref{sec:vir_encoding}. The captured
+traces show the TDI glitch, and erroneous one-hot state assertion
+observed with the external logic analyzer.
+
+\clearpage
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\textwidth]
+  {figures/vji_shift_ir_hw_a.pdf}
+  \caption{Altera Virtual JTAG logic analyzer trace; initial Virtual IR-shift
+  sequence (after accessing the device). The sequence consists of
+  JTAG {\tt BYPASS} and {\tt USER1} IR-shift sequences followed by
+  the JTAG DR-shift sequences.}
+  \label{fig:vji_shift_ir_hw_a}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\textwidth]
+  {figures/vji_shift_ir_hw_b.pdf}
+  \caption{Altera Virtual JTAG logic analyzer trace; Virtual IR-shift
+  sequence following a Virtual IR-shift sequence (the JTAG {\tt USER1}
+  sequence is not issued).}
+  \label{fig:vji_shift_ir_hw_b}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\textwidth]
+  {figures/vji_shift_ir_hw_c.pdf}
+  \caption{Altera Virtual JTAG logic analyzer trace; Virtual IR-shift
+  sequence with the option {\tt -no\_captured\_ir\_value} following a Virtual
+  IR-shift sequence (the JTAG {\tt USER1} and {\tt VIR\_CAPTURE} sequences
+  are not issued).}
+  \label{fig:vji_shift_ir_hw_c}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\textwidth]
+  {figures/vji_shift_dr_hw_a.pdf}
+  \caption{Altera Virtual JTAG logic analyzer trace; Virtual DR-shift
+  sequence following a IR-shift sequence.  The sequence consists of
+  JTAG {\tt USER0} IR-shift sequence followed by
+  a JTAG DR-shift sequence. Note the invalid pulse on {\tt virtual\_state\_cir};
+  this indicates a logical error in the Altera component.}
+  \label{fig:vji_shift_dr_hw_a}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\textwidth]
+  {figures/vji_shift_dr_hw_b.pdf}
+  \caption{Altera Virtual JTAG logic analyzer trace; Virtual DR-shift
+  sequence following a Virtual DR-shift sequence (the JTAG {\tt USER0} sequence
+  is not issued).  Note the invalid pulse on {\tt virtual\_state\_cir};
+  this indicates a logical error in the Altera component.}
+  \label{fig:vji_shift_dr_hw_b}
+\end{figure}
+
+% -----------------------------------------------------------------
+% SignalTap II logic analyzer traces
+% -----------------------------------------------------------------
+%
+% The bitmaps generated by SignalTap can be edited using MATLAB to
+% eliminate sections of the bitmap. Eg.
+%
+%    x = imread('de2a.bmp');
+%    image(x)
+%    y = [x(:,1:265,:) x(:,600:end,:)];
+%    image(y)
+%    imwrite(y,'de2a.bmp','BMP');
+%
+% Then take that image into Inkscape for annotation. Don't both to
+% scale the bitmap in Inkscape, just leave it in its natural size
+% and use Latex to scale the image.
+%
+\begin{landscape}
+\begin{figure}
+  \centering
+  \includegraphics[width=210mm]
+  {figures/vji_shift_ir_stp_a.pdf}
+  \caption{Altera Virtual JTAG SignalTap II logic analyzer trace; initial
+  Virtual IR-shift sequence. The sequence consists of the JTAG {\tt USER1} 
+  IR-shift sequence followed by the JTAG DR-shift sequences.}
+  \label{fig:vji_shift_ir_stp_a}
+\end{figure}
+\end{landscape}
+
+\begin{landscape}
+\begin{figure}
+  \centering
+  \includegraphics[width=210mm]
+  {figures/vji_shift_dr_stp_a.pdf}
+  \caption{Altera Virtual JTAG SignalTap II logic analyzer trace; Virtual DR-shift
+  sequence following a IR-shift sequence.  The sequence consists of the
+  JTAG {\tt USER0} IR-shift sequence followed by a JTAG DR-shift sequence. 
+  Note the invalid pulse on {\tt virtual\_state\_cir};
+  this indicates a logical error in the Altera component.}
+  \label{fig:vji_shift_dr_stp_a}
+\end{figure}
+\end{landscape}
+
+\clearpage
+% -----------------------------------------------------------------
+\subsection{JTAG hub/node identification and instruction encoding}
+% -----------------------------------------------------------------
+\label{sec:vir_encoding}
+
+The Appendices in the Virtual JTAG Megafunction User
+Guide~\cite{Altera_Virtual_JTAG_2008} provide low-level
+details on the JTAG hub and device node identification
+and instruction encoding. This section provides details
+on how to use these instructions, and provides a correction
+relative to the user guide.
+
+The Altera JTAG debug devices are coordinated via the JTAG
+hub (reported in the Quartus hierarchy window as the 
+\verb+sld_hub+). The properties of the hub and the nodes
+attached to the hub can be queried using the Virtual
+Instruction Register (VIR) \verb+HUB_INFO+ instruction.
+Figure~\ref{fig:vir_encoding} shows the VIR instruction
+encoding, while Figures~\ref{fig:hub_info} 
+and~\ref{fig:node_info} show the hub and node information
+that is accessed using the \verb+HUB_INFO+ instruction.
+
+The VIR is used for both hub instructions and user instructions. 
+The VIR width (also known as the USER1 DR length) depends on the
+width of the hub instructions and the width of the user instructions.
+The width of the hub instructions depends on the number of nodes in the
+design. The width of the user instructions depends on
+the number of nodes in the design, and the {\em maximum}
+width of the user-defined field of a user instruction, i.e., 
+the maximum value of the \verb+SLD_IR_WIDTH+ parameter used on the
+\verb+sld_virtual_jtag+ instances in a design, and the
+maximum width of the instruction field required by any
+other SLD JTAG components in the design, eg., SignalTap II logic
+analyzer instances and SOPC Builder components such 
+as the JTAG-to-Avalon Bridge and JTAG UART.
+
+The width of the VIR $n$-bit hub/node address field shown in
+Figure~\ref{fig:vir_encoding} is
+%
+\begin{equation}
+n = \mbox{ceil}\left\{\log_2(N+1)\right\}
+\label{eq:vir_width_n}
+\end{equation}
+%
+where $N$ is the number of nodes in the design. The plus one
+in this equation accounts for the fact that the hub uses an 
+address (address zero). 
+
+The width of the VIR $m$-bit instruction value field shown
+in Figure~\ref{fig:vir_encoding} is
+%
+\begin{equation}
+m = \mbox{max}(n+3, \mbox{\tt MAX\_SLD\_IR\_WIDTH})
+\label{eq:vir_width_m}
+\end{equation}
+%
+where $n+3$ is the field width required to encode the
+VIR capture instruction, and \verb+MAX_SLD_IR_WIDTH+ is the
+field width required to encode the maximum width of 
+instructions used by the SLD components in the design
+(instructions with less than $m$-bits are padded with
+zeros before being issued).
+
+The width $m$ can be read from the hardware using
+the VIR \verb+HUB_INFO+ instruction. However, encoding the 
+ \verb+HUB_INFO+ instruction to read the width $m$ requires
+knowledge of $m$! This conflict 
+is resolved by the fact that the encoding for the hub address
+and the \verb+HUB_INFO+ instruction is all zeros, so the VIR
+register can be loaded with zeros up to the maximum possible 
+VIR width. The maximum total VIR width ($m+n$) can be determined as
+follows;
+%
+\begin{itemize}
+\item The maximum number of nodes is 255, i.e., $n = 8$.
+\item The maximum user-defined \verb+SLD_IR_WIDTH+ is
+32-bits, i.e., $m = 32$.
+\end{itemize}
+%
+hence the maximum VIR width (for a design containing only
+\verb+sld_virtual_jtag+ components) is 40-bits. Altera
+recommends shifting 64-bits of zeros 
+(pA-2~\cite{Altera_Virtual_JTAG_2008}).
+
+Once the \verb+HUB_INFO+ instruction has been loaded into
+the VIR, the 32-bit {\em Hub IP Configuration Register}
+can be shifted out by performing eight 4-bit (nibble) DR-shift
+operations. Figure~\ref{fig:hub_info} shows the fields within
+this register. The Virtual JTAG User's Guide
+\textcolor{red}{incorrectly} defines the first field as the
+total VIR register width \verb+SUM(m,n)+, whereas this field
+actually returns the VIR register $m$-width. The VIR field
+width $n$ can be determined from the \verb+HUB_INFO+
+{\em number of nodes} field, and the width $m$ is read
+directly. From that point on, VIR instructions (including 
+\verb+HUB_INFO+) can be encoded and issued with the correct 
+number of bits. The \verb+HUB_INFO+ {\em number of nodes}
+field indicates how many 32-bit \verb+SLD_NODE_INFO+ register
+values can be read following the 32-bit \verb+HUB_INFO+
+register. These 32-bit registers are read using the same
+4-bit (nibble) DR-shift sequence as the \verb+HUB_INFO+
+register. Figure~\ref{fig:node_info}
+shows the register format and shows some example node
+register values.
+
+\begin{figure}[p]
+\begin{center}
+\includegraphics[width=0.95\textwidth]
+{figures/jtag_vir_encoding.pdf}
+\end{center}
+\caption{JTAG Virtual Instruction Register (VIR) Encoding.}
+\label{fig:vir_encoding}
+\end{figure}
+
+\begin{figure}[p]
+\begin{center}
+\includegraphics[width=0.95\textwidth]
+{figures/jtag_hub_info_register.pdf}
+\end{center}
+\caption{JTAG Hub IP Configuration Register Format.}
+\label{fig:hub_info}
+\end{figure}
+
+\setlength{\unitlength}{1mm}
+\begin{figure}[p]
+  \begin{picture}(160,80)(0,0)
+    \put(2,5){
+    \includegraphics[width=0.95\textwidth]
+    {figures/jtag_node_info_register.pdf}}
+    \put(73,58){(a)}
+    \put(73,0){(b)}
+  \end{picture}
+  \caption{JTAG Node Information; (a) Register Format and
+  (b) Example node information (for single node instances).}
+  \label{fig:node_info}
+\end{figure}
+
+\clearpage
+The equations for the Virtual Instruction Register (VIR) width
+parameters $n$ and $m$, given in~\eqref{eq:vir_width_n} 
+and~\eqref{eq:vir_width_m}, were confirmed using a DE2 board
+design that instantiates multiple \verb+sld_virtual_jtag+
+components. The design, \verb+sld_vjtag_multiple+, is 
+parameterized with two generics;
+%
+\begin{itemize}
+\item \verb+INSTANCES+
+
+      The number of \verb+sld_virtual_jtag+ instances.
+
+\item \verb+SLD_IR_WIDTH+
+
+      The width of the user-defined component of the VIR register\newline
+      (with all instances having the same width).
+\end{itemize}
+%
+Table~\ref{tab:vir_width_exploration} shows the results of multiple
+synthesis runs; the table contains the value calculated for $n$, and the 
+two possible values for the total VIR register width, $(n+m)$. 
+%
+The table can be used to predict the VIR instruction width to
+expect for a design containing \verb+sld_virtual_jtag+
+components. The predicted width is determined by first selecting
+the row consistent with the number of nodes in the design,
+and then the column consistent with the (maximum) \verb+SLD_IR_WIDTH+
+used within the design. If the text entry at the intersection of the
+row and column values is black, then the VIR register width is 
+dominated by the capture instruction, so the width is given by the
+blue capture instruction width. If however, the entry text is
+red, then the VIR register width is dominated by the user
+instruction width and is given by the red text.
+
+The VIR width parameters for a design are reported in multiple locations
+in Quartus II;
+%
+\begin{itemize}
+\item The parameters for the \verb+sld_virtual_jtag+
+component instances are reported in the Virtual JTAG settings 
+compilation report; {\em Analysis \& Synthesis}, {\em Debug Settings Summary},
+{\em Virtual JTAG Settings}. 
+%
+\begin{itemize}
+\item The USER1 DR length in this report is the total VIR width ($m+n$).
+\item The capture instruction encodings for each instance are reported.
+\item The address value reported for each instance are essentially a user
+instruction with the user instruction value (the \verb+SLD_IR_WIDTH+ bits)
+set to zero.
+\end{itemize}
+%
+\item The SLD hub parameters can be obtained by hovering the mouse over
+the \verb+sld_hub+ component in the Quartus II hierarchy window after
+place-and-route of a design.
+%
+\begin{itemize}
+\item \verb+n_nodes+ is the number of nodes in the design ($N$)
+\item \verb+n_sel_bits+ is the number of select (address) bits ($n$)
+\item \verb+n_node_ir_bits+ is the numbers of bits in the instruction field ($m$)
+\item \verb+node_info+ is a binary value equivalent to the concatenation of
+the 32-bit \verb+SLD_NODE_INFO+ values for each node in the design.
+\end{itemize}
+%
+\item SLD component parameters are reported in the \verb+.jdi+ file for a 
+project, eg. \verb+de2.jdi+.
+%
+\begin{itemize}
+\item The file has the 32-bit \verb+SLD_NODE_INFO+ values in hexadecimal.
+\item The file contains node details for all of the SLD components in a
+design. For example, the DE2 board design \verb+sld_vjtag_custom+ can be
+configured to contain an
+\verb+sld_virtual_jtag+ component, a custom 
+\verb+sld_virtual_jtag_basic+ component, a JTAG-to-Avalon bridge,
+and a SignalTap II logic analyzer instance. The Quartus compilation reports
+contain scattered details on each of these components. The \verb+de2.jdi+
+file contains the component instance names, and JTAG identification details.
+\end{itemize}
+%
+\end{itemize}
+%
+Figure~\ref{fig:sld_vjtag_to_gpio_settings} shows the Virtual JTAG
+settings report and the SLD hub tooltip for the \verb+sld_vjtag_to_gpio+ 
+project, while Figure~\ref{fig:sld_vjtag_multiple_settings}
+shows the report for the \verb+sld_vjtag_multiple+ project.
+
+
+% -----------------------------------------------------------------
+% Hub parameters
+% -----------------------------------------------------------------
+%
+\begin{landscape}
+\begin{table}
+\caption{Virtual Instruction Register (VIR) width parameter exploration.}
+\label{tab:vir_width_exploration}
+\begin{center}
+\begin{tabular}{|c|c||c|c|c|c|c|c|c|c|c|c|c|c|c|}
+\hline
+            & VIR hub/node& \multicolumn{13}{l|}{VIR register width required for;}\\
+\cline{3-15}
+Number of   & address     & Capture     & \multicolumn{12}{l|}{User instruction ($n+m$)}\\
+nodes, $N$  & width, $n$  & $(2n+3)$    & \multicolumn{12}{l|}{for  $m$ = {\tt SLD\_IR\_WIDTH} values of;}\\
+\cline{4-15}
+            &             &             & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 & 9 & 10 & 11 & 12\\
+\hline\hline
+&&&&&&&&&&&&&&\\
+   1    &  1 & \textcolor{blue}{ 5} &  2 &  3 &  4 &  \textcolor{red}{5} &  \textcolor{red}{6} &  \textcolor{red}{7} &  \textcolor{red}{8} &  \textcolor{red}{9} & \textcolor{red}{10} & \textcolor{red}{11} & \textcolor{red}{12} & \textcolor{red}{13}\\
+  2-3   &  2 & \textcolor{blue}{ 7} &  3 &  4 &  5 &  6  &  \textcolor{red}{7} &  \textcolor{red}{8} &  \textcolor{red}{9} & \textcolor{red}{10} & \textcolor{red}{11} & \textcolor{red}{12} & \textcolor{red}{13} & \textcolor{red}{14}\\
+  4-7   &  3 & \textcolor{blue}{ 9} &  4 &  5 &  6 &  7  &  8 &  \textcolor{red}{9} & \textcolor{red}{10} & \textcolor{red}{11} & \textcolor{red}{12} & \textcolor{red}{13} & \textcolor{red}{14} & \textcolor{red}{15}\\
+  8-15  &  4 & \textcolor{blue}{11} &  5 &  6 &  7 &  8  &  9 & 10 & \textcolor{red}{11} & \textcolor{red}{12} & \textcolor{red}{13} & \textcolor{red}{14} & \textcolor{red}{15} & \textcolor{red}{16}\\
+ 16-31  &  5 & \textcolor{blue}{13} &  6 &  7 &  8 &  9  & 10 & 11 & 12 & \textcolor{red}{13} & \textcolor{red}{14} & \textcolor{red}{15} & \textcolor{red}{16} & \textcolor{red}{17}\\
+ 32-63  &  6 & \textcolor{blue}{15} &  7 &  8 &  9 & 10  & 11 & 12 & 13 & 14 & \textcolor{red}{15} & \textcolor{red}{16} & \textcolor{red}{17} & \textcolor{red}{18}\\
+ 64-127 &  7 & \textcolor{blue}{17} &  8 &  9 & 10 & 11  & 12 & 13 & 14 & 15 & 16 & \textcolor{red}{17} & \textcolor{red}{18} & \textcolor{red}{19}\\
+128-255 &  8 & \textcolor{blue}{19} &  9 & 10 & 11 & 12  & 13 & 14 & 15 & 16 & 17 & 18 & \textcolor{red}{19} & \textcolor{red}{20}\\
+&&&&&&&&&&&&&&\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+\end{landscape}
+% -----------------------------------------------------------------
+
+% -----------------------------------------------------------------
+% Quartus Virtual JTAG report and tooltip for sld_vjtag_to_gpio
+% -----------------------------------------------------------------
+%
+% Ctrl-Shift-Alt PrintScreen to get the images, then use Paint to
+% save to PNG. For the tooltip, cut-and-paste into a new document
+% in paint. Before pasting, reduce the image size to something
+% smaller than the pasted bitmap. Do not use Corel PhotoPaint
+% as the .PNGs it produces crashes PCTex.
+%
+\setlength{\unitlength}{1mm}
+\begin{figure}
+  \begin{picture}(160,160)(0,0)
+    \put(2,65){
+    \includegraphics[width=0.95\textwidth]
+    {figures/sld_vjtag_to_gpio_vjtag_settings.png}}
+    \put(40,5){
+    \includegraphics[width=0.45\textwidth]
+    {figures/sld_vjtag_to_gpio_hub_tooltip.png}}
+    \put(73,60){(a)}
+    \put(73,0){(b)}
+  \end{picture}
+  \caption{Quartus II Virtual JTAG Node Information for a single instance design;
+  (a) Virtual JTAG settings compilation report, and
+  (b) SLD hub tooltip information.}
+  \label{fig:sld_vjtag_to_gpio_settings}
+\end{figure}
+% -----------------------------------------------------------------
+
+% -----------------------------------------------------------------
+% Quartus Virtual JTAG report and tooltip for sld_vjtag_to_multiple
+% -----------------------------------------------------------------
+%
+\setlength{\unitlength}{1mm}
+\begin{figure}
+  \begin{picture}(160,160)(0,0)
+    \put(2,65){
+    \includegraphics[width=0.95\textwidth]
+    {figures/sld_vjtag_multiple_vjtag_settings.png}}
+    \put(25,5){
+    \includegraphics[width=0.65\textwidth]
+    {figures/sld_vjtag_multiple_hub_tooltip.png}}
+    \put(73,60){(a)}
+    \put(73,0){(b)}
+  \end{picture}
+  \caption{Quartus II Virtual JTAG Node Information for a multiple instance design;
+  (a) Virtual JTAG settings compilation report, and
+  (b) SLD hub tooltip information.}
+  \label{fig:sld_vjtag_multiple_settings}
+\end{figure}
+% -----------------------------------------------------------------
+
+\clearpage
+The Tcl Virtual JTAG procedures use the instance index to access 
+(address) each component instance; the reports in 
+Figures~\ref{fig:sld_vjtag_to_gpio_settings} 
+and~\ref{fig:sld_vjtag_multiple_settings} shows the instance
+index for each \verb+sld_virtual_jtag+ component in the
+design. The reports also show the instance capture instruction,
+address, and USER1 DR length (VIR width).
+
+Figure~\ref{fig:vir_encoding} shows the encoding for Virtual 
+instructions. Table~\ref{tab:vir_instruction_examples} shows
+example encodings. The \verb+SLD_IR_WIDTH+ value selected for 
+these examples was such that the VIR width would be determined
+by the capture instruction width, i.e., in 
+Table~\ref{tab:vir_width_exploration} the blue values set the width,
+eg., \verb+SLD_IR_WIDTH+ values of 1, 2, 3, or 4
+can be used to generate the example encodings in
+Table~\ref{tab:vir_instruction_examples}.
+The hexadecimal values for the capture instruction and 
+node address reported in Figures~\ref{fig:sld_vjtag_to_gpio_settings} 
+and~\ref{fig:sld_vjtag_multiple_settings} correspond to
+the $N=1$ and $N=8$ values in Table~\ref{tab:vir_instruction_examples}.
+
+The examples in Table~\ref{tab:vir_instruction_examples} show the 
+encoding for the capture instruction and the user address.
+The capture instruction for each node consists of 
+the $n$-bit hub address (zero), followed by the $n$-bit node
+address, and then the 3-bit capture code 011b. Since the
+VIR width for these examples was determined by the capture
+instruction width, no zero padding is required
+(see Figure~\ref{fig:vir_encoding}). 
+The user address in Table~\ref{tab:vir_instruction_examples} 
+consists of the $n$-bit node address, followed by zeros. A practical
+use of this address is in the formation of user instructions;
+the first $n$-bits is the node address, and the last \verb+SLD_IR_WIDTH+
+bits encode the user instruction, with any unused bits between
+the user instruction and node address being set to zero.
+
+\begin{table}[t]
+\caption{{\tt sld\_vjtag\_to\_gpio} Tcl procedures.}
+\label{tab:sld_vjtag_to_gpio_cmds}
+\begin{center}
+\begin{tabular}{|l|p{10cm}|}
+\hline
+Command & Description\\
+\hline\hline
+&\\
+\verb+jtag_open+  & Access JTAG on the DE2 board.\\
+\verb+jtag_close+ & End JTAG access.\\
+&\\
+\verb+read_idcode+   & Read the Cyclone II JTAG IDCODE, i.e., 020B40DDh.\\
+\verb+read_usercode+ & Read the user-defined JTAG USERCODE, eg., 12345678h.\\
+\verb+pulse_nconfig+ & Reset the FPGA configuration.\\
+&\\
+\verb+print_hub_info+  & Print the Virtual JTAG \verb+HUB_INFO+.\\
+\verb+print_node_info+ & Print the Virtual JTAG \verb+SLD_NODE_INFO+.\\
+&\\
+\verb+jtag_vir+ & Virtual IR-shift.\\
+\verb+jtag_vdr+ & Virtual DR-shift.\\
+&\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+
+The JTAG properties of a design can be queried using Tcl procedures.
+Table~\ref{tab:sld_vjtag_to_gpio_cmds} shows the Tcl procedures implemented
+in \verb+sld_vjtag_to_gpio/scripts/vjtag_cmds.tcl+.
+The JTAG \verb+HUB_INFO+ and \verb+SLD_NODE_INFO+ commands were
+issued to the designs shown in Tables~\ref{tab:vir_width_exploration} 
+and~\ref{tab:vir_instruction_examples} to confirm the table
+values.
+
+% -----------------------------------------------------------------
+% VIR encoding examples
+% -----------------------------------------------------------------
+%
+\begin{landscape}
+\begin{table}
+\caption{VIR instruction encoding examples (for interpreting Quartus reported values).}
+\label{tab:vir_instruction_examples}
+\begin{center}
+\begin{tabular}{|c|c|c||c|r|r|r|r|}
+\hline
+Number    & VIR hub/node & VIR     & Node       & \multicolumn{2}{c|}{Capture}     & \multicolumn{2}{c|}{Node (instance)}\\
+of nodes, & address      & width,  & (instance) & \multicolumn{2}{c|}{Instruction} & \multicolumn{2}{c|}{Address} \\
+\cline{5-8}
+$N$       & width, $n$   & $(m+n)$ & Number     & \multicolumn{1}{c|}{(binary)} & \multicolumn{1}{c|}{(hex)} & \multicolumn{1}{c|}{(binary)} & \multicolumn{1}{c|}{(hex)} \\
+\hline\hline
+&&&&&&&\\
+1 & 1 &  5 & 1 &       \verb+0_1_011b+ & \verb+0Bh+ &        \verb+1_0_000b+ & \verb+10h+\\
+&&&&&&&\\
+2 & 2 &  7 & 1 &     \verb+00_01_011b+ & \verb+0Bh+ &      \verb+01_00_000b+ & \verb+20h+\\
+  &   &    & 2 &     \verb+00_10_011b+ & \verb+13h+ &      \verb+10_00_000b+ & \verb+40h+\\
+&&&&&&&\\
+4 & 3 &  9 & 1 &   \verb+000_001_011b+ & \verb+00Bh+ &   \verb+001_000_000b+ & \verb+040h+\\
+  &   &    & 2 &   \verb+000_010_011b+ & \verb+013h+ &   \verb+010_000_000b+ & \verb+080h+\\
+  &   &    & 3 &   \verb+000_011_011b+ & \verb+01Bh+ &   \verb+011_000_000b+ & \verb+0C0h+\\
+  &   &    & 4 &   \verb+000_100_011b+ & \verb+023h+ &   \verb+100_000_000b+ & \verb+100h+\\
+&&&&&&&\\
+8 & 4 & 11 & 1 & \verb+0000_0001_011b+ & \verb+00Bh+ & \verb+0001_0000_000b+ & \verb+080h+\\
+  &   &    & 2 & \verb+0000_0010_011b+ & \verb+013h+ & \verb+0010_0000_000b+ & \verb+100h+\\
+  &   &    & 3 & \verb+0000_0011_011b+ & \verb+01Bh+ & \verb+0011_0000_000b+ & \verb+180h+\\
+  &   &    & 4 & \verb+0000_0100_011b+ & \verb+023h+ & \verb+0100_0000_000b+ & \verb+200h+\\
+  &   &    & 5 & \verb+0000_0101_011b+ & \verb+02Bh+ & \verb+0101_0000_000b+ & \verb+280h+\\
+  &   &    & 6 & \verb+0000_0110_011b+ & \verb+033h+ & \verb+0110_0000_000b+ & \verb+300h+\\
+  &   &    & 7 & \verb+0000_0111_011b+ & \verb+03Bh+ & \verb+0111_0000_000b+ & \verb+380h+\\
+  &   &    & 8 & \verb+0000_1000_011b+ & \verb+043h+ & \verb+1000_0000_000b+ & \verb+400h+\\
+&&&&&&&\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+\end{landscape}
+% -----------------------------------------------------------------
+
+Appendix A of the Virtual JTAG User Guide~\cite{Altera_Virtual_JTAG_2008}
+\textcolor{red}{incorrectly} states that that \verb+HUB_INFO+ command
+returns the total VIR width. Figure~\ref{fig:hub_info} shows the
+instruction {\em actually} returns the VIR $m$-width. The error in the documentation
+was confirmed in hardware using the \verb+HUB_INFO+ command.
+For example, the \verb+sld_vjtag_multiple+ design with 4 instances
+and an \verb+SLD_IR_WIDTH+ of 8, has \verb+HUB_INFO+;
+%
+\begin{verbatim}
+tcl> print_hub_info
+         Hub info: 0x08206E08
+      VIR m-width: 8
+  Manufacturer ID: 0x6E
+  Number of nodes: 4
+       IP Version: 1
+\end{verbatim}
+%
+Table~\ref{tab:vir_width_exploration} indicates that the total VIR width
+is determined by the user instruction and is 11-bits, and $n=3$, so
+$m=11-3=8$, and this is what the \verb+HUB_INFO+
+instruction returns. As another example, a design with 16 instances
+and an \verb+SLD_IR_WIDTH+ of 5, has \verb+HUB_INFO+;
+%
+\begin{verbatim}
+tcl> print_hub_info
+         Hub info: 0x08806E08
+      VIR m-width: 8
+  Manufacturer ID: 0x6E
+  Number of nodes: 16
+       IP Version: 1
+\end{verbatim}
+%
+Table~\ref{tab:vir_width_exploration} indicates that the total VIR width
+is determined by the capture instruction and is 13-bits, and $n=5$, so 
+$m=13-5=8$, and again this is what the
+\verb+HUB_INFO+ instruction returns. 
+
+\vskip20mm
+% -----------------------------------------------------------------
+\subsection{Multiple SLD debug component testing}
+% -----------------------------------------------------------------
+\label{sec:multiple_sld_tests}
+
+This document has described the Virtual JTAG component
+\verb+sld_virtual_jtag+ instruction encoding properties. 
+The JTAG properties of other SLD components are not well documented
+by Altera. To investigate the effect other SLD components have
+on VIR encoding, the design \verb+sld_vjtag_custom+ was
+created. The design can be configured to contain multiple SLD
+components;
+%
+\begin{itemize}
+\item One or two instances of \verb+sld_virtual_jtag+.
+\item One or two instances of \verb+sld_virtual_jtag_basic+.
+\item An instance of \verb+sld_virtual_jtag+ and \verb+sld_virtual_jtag_basic+.
+\item An SOPC system containing a JTAG-to-Avalon bridge.
+\item A SignalTap II logic analyzer instance.
+\end{itemize}
+%
+
+\clearpage
+\begin{table}[t]
+\caption{Multiple SLD component VIR encoding results.}
+\label{tab:sld_vjtag_custom}
+\begin{center}
+\begin{tabular}{|c||c|c||c|c|c|c|}
+\hline
+Example & SignalTap & SOPC    & Number of  & \multicolumn{3}{c|}{Virtual Instruction Register}\\
+\cline{5-7}
+Number  & Enabled   & Enabled & Nodes, $N$ & $n$ & $m$ & $(m+n)$\\
+\hline\hline
+&&&&&&\\
+1 or 2     & $\times$   & $\times$   & 1 & 1 & 4 & 5\\
+           & $\times$   & \checkmark & 2 & 2 & 5 & 7\\
+           & \checkmark & $\times$   & 2 & 2 & 8 & 10\\
+           & \checkmark & \checkmark & 3 & 2 & 8 & 10\\
+&&&&&&\\
+3, 4, or 5 & $\times$   & $\times$   & 2 & 2 & 5 & 7\\
+           & $\times$   & \checkmark & 3 & 2 & 5 & 7\\
+           & \checkmark & $\times$   & 3 & 2 & 8 & 10\\
+           & \checkmark & \checkmark & 4 & 2 & 8 & 11\\
+&&&&&&\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+
+\noindent The component \verb+sld_virtual_jtag_basic+ is the undocumented
+component used to implement the \verb+sld_virtual_jtag+ component
+(it can be seen in the hierarchy display in 
+Figure~\ref{fig:sld_vjtag_to_gpio_settings}) and is the basis
+of the JTAG PHY used in the JTAG-to-Avalon bridges. 
+The \verb+sld_virtual_jtag_basic+ component allows you to
+specify a manufacturer ID code, a device type ID code,
+and a version number. This information can then be reported
+using the \verb+SLD_NODE_INFO+ instruction. Unfortunately, once
+you change the codes from the Altera values, the Virtual JTAG
+Tcl procedures no longer work, i.e., you can no longer use
+\verb+device_virtual_ir_shift+ and \verb+device_virtual_dr_shift+,
+but must construct commands using the JTAG Tcl instructions
+\verb+device_ir_shift+ and \verb+device_dr_shift+, which means
+that user Tcl code has to deal with low-level VIR encoding.
+Section~\ref{sec:altera_vjtag} describes a general-purpose
+component based on the \verb+sld_virtual_jtag+ component that
+provides identification registers, while allowing the use of
+the Virtual JTAG Tcl procedures.
+
+Table~\ref{tab:sld_vjtag_custom} shows synthesis results from the
+\verb+sld_vjtag_custom+ design. The results are displayed in two
+blocks; when the \verb+sld_vjtag_custom+ generic \verb+EXAMPLE+
+is set to 1 or 2, the design contains a single \verb+sld_virtual_jtag+
+or \verb+sld_virtual_jtag_basic+ component, and when the generic is
+set to 3, 4, or 5, the design contains two components. The four
+results for each of the two blocks indicate the change in VIR
+parameters as either the SOPC system or SignalTap II instance is,
+or both are, enabled in the design. The SOPC system contains a
+JTAG-to-Avalon bridge. The bridge is implemented using an 
+\verb+sld_virtual_jtag_basic+ component with an \verb+SLD_IR_WIDTH+
+of 2; which is small enough that its instruction width is
+capture instruction width dominated. Table~\ref{tab:sld_vjtag_custom} shows 
+that when the design contains the Virtual JTAG instance(s)
+and the SOPC system, the VIR width changes to accommodate the
+change in node address bits.
+When the SignalTap II instance is added, the VIR width increases
+to accommodate the (undocumented) instruction width required
+by the SignalTap II instance, which in this case is an effective
+\verb+SLD_IR_WIDTH+ of 8-bits.
+
+Tcl scripts that access Virtual JTAG components must interrogate
+the hardware before issuing instructions, since the presence of
+a SignalTap II logic analyzer instance will affect the instruction
+encoding, and analyzer instances can be added to a design independently
+of the design source, eg., VHDL. This is a key argument for designing
+JTAG components around the \verb+sld_virtual_jtag+ component,
+so that the Virtual JTAG Tcl commands can be used
+(since they take care of hub interrogation).
+
+\clearpage
+% =================================================================
+\section{Bus Functional Model (BFM) Simulation}
+% =================================================================
+\label{sec:simulation_model}
+
+This section describes the design of a functionally correct simulation
+model, i.e., the model generates transaction waveforms that
+match logic analyzer traces shown in 
+Sections~\ref{sec:external_logic_analyzer_traces}
+and~\ref{sec:signaltap_logic_analyzer_traces},
+with the exception of not reproducing the logical error present
+in the Altera IP core, shown in Figures~\ref{fig:vji_shift_dr_hw_a},
+\ref{fig:vji_shift_dr_hw_b} and~\ref{fig:vji_shift_dr_stp_a}.
+The JTAG simulation infrastructure consists of;
+%
+\begin{itemize}
+\item A bus functional model (BFM). 
+
+The BFM consists of a VHDL server component, and a VHDL package
+containing client/server communications procedures. 
+
+Testbenches constructed using the BFM consist of a testcase generator,
+the BFM server, and the device, or devices, under test (a design containing
+one or more of the Virtual JTAG simulation models). The testcase generator
+(the client) communicates with the BFM server using VHDL procedures 
+analogous to the Virtual JTAG Tcl procedures. Procedure parameters are
+passed between the client and server using a VHDL resolved signal
+(read the BFM package source for details). The server receives client
+requests and generates JTAG transactions on the server output signals
+TCK, TMS, and TDI. The server outputs route to the inputs on each Virtual
+JTAG model instance. The Virtual JTAG model TDO outputs route back
+to the BFM server. The BFM server selects the appropriate TDO input 
+based on the instance index indicated by the client (analogous to
+the way the instance index argument is used by the Tcl procedures).
+
+The BFM server is analogous to the Altera \verb+sld_hub+.
+
+\item A Virtual JTAG model.
+
+The top-level component \verb+altera_sld_virtual_jtag+ can be used to
+replace the Altera Virtual JTAG component. The new component
+contains {\em external} JTAG ports that are used only during simulation
+(to connect to the BFM server).
+The additional port definitions are contained within an Altera synthesis
+directive\footnote{{\tt altera translate\_off} and 
+{\tt altera translate\_on}.}, so that during synthesis the ports are 
+not interpreted by Quartus.
+Within the component, the design instantiates either the
+simulation component \verb+altera_sld_virtual_jtag_model+ or the
+synthesis component \verb+sld_virtual_jtag+. Altera synthesis directives
+are again used\footnote{{\tt synthesis read\_comments\_as\_HDL on} and
+{\tt synthesis read\_comments\_as\_HDL off}.}, so that Quartus only sees
+the synthesis model.
+\end{itemize}
+
+
+The \verb+altera_sld_virtual_jtag_model+ component contains an
+\verb+altera_jtag_tap+ component that tracks the state of the
+JTAG transaction, and an instruction register for determining
+when the USER1 and USER0 instructions have been issued.
+The component {\em combinatorially} generates the virtual
+JTAG one-hot outputs using the instruction encoding and
+the JTAG state. The logic analyzer traces show that the
+VIR register does not change when a capture instruction is
+issued, only when the user instruction is issued, to the
+model reproduces this sequence. 
+
+The simulation model architecture does not match the 
+hardware architecture; a simulation design containing multiple
+instances of the simulation model will contain redundant copies
+of the 10-bit JTAG instruction register for USER0/USER1
+detection. However, containing this repeated logic within the
+simulation model makes the simulation infrastructure simpler,
+as the connection between the BFM server and the models
+reduces to the JTAG signals, rather than the JTAG signals, 
+USER0 and USER1 decode signals, and Virtual Instruction
+Register buses (one for each instance). The compilation reports
+for the single and multiple instance designs in
+Figures~\ref{fig:sld_vjtag_to_gpio_settings} 
+and~\ref{fig:sld_vjtag_multiple_settings} show that
+the \verb+sld_virtual_jtag+ components consume few or zero 
+logic resources, whereas the \verb+sld_hub+ consumes an 
+increasing amount of logic (96 logic cells, then 298 logic cells).
+This implies that the \verb+sld_hub+ is where all the Virtual 
+JTAG logic resides, and that the \verb+sld_virtual_jtag+ component is
+simply the user-visible interface to the hub logic.
+
+The simulation model does not implement the \verb+HUB_INFO+ and
+\verb+SLD_NODE_INFO+ registers. The logic is not difficult
+to model, however, the testbench needs the generics that these
+instructions encode, so its just as easy for the client/server 
+procedures to use the generics directly (otherwise the client
+procedures would have to first interrogate the hub for the 
+information). The simulation models use generics to construct
+VIR encode and decode logic that matches the hardware 
+implementation.
+
+Figure~\ref{fig:altera_sld_vjtag_shift_ir_tb} shows the simulation
+model Virtual IR-shift sequence. Comparison of the figure to
+the logic analyzer traces in Figures~\ref{fig:vji_shift_ir_hw_a}
+and~\ref{fig:vji_shift_ir_stp_a}, shows that the simulation
+model generates the correct JTAG sequence. Contrast this to the
+incorrect simulation results produced by the Altera model in
+Figure~\ref{fig:vji_shift_ir_tb_a}.
+
+Figure~\ref{fig:altera_sld_vjtag_shift_dr_tb} shows the simulation
+model Virtual DR-shift sequence. Comparison of the figure to
+the logic analyzer traces in Figures~\ref{fig:vji_shift_dr_hw_a}
+and~\ref{fig:vji_shift_dr_stp_a}, shows that the simulation
+model generates the correct JTAG sequence. Contrast this to the
+incorrect simulation results produced by the Altera model in
+Figure~\ref{fig:vji_shift_dr_tb_a}.
+
+
+\begin{figure}[p]
+  \centering
+  \includegraphics[width=\textwidth]
+  {figures/altera_sld_vjtag_vir_tb.pdf}
+  \caption{Virtual JTAG simulation; Virtual IR-shift sequence.}
+  \label{fig:altera_sld_vjtag_shift_ir_tb}
+\end{figure}
+
+\begin{figure}[p]
+  \centering
+  \includegraphics[width=\textwidth]
+  {figures/altera_sld_vjtag_vdr_tb.pdf}
+  \caption{Virtual JTAG simulation; Virtual DR-shift sequence.}
+  \label{fig:altera_sld_vjtag_shift_dr_tb}
+\end{figure}
+
+\clearpage
+% =================================================================
+\section{General-purpose identifiable Virtual JTAG component}
+% =================================================================
+\label{sec:altera_vjtag}
+
+Custom components based on the \verb+sld_virtual_jtag+ component
+require some form of identification to uniquely identify each
+instance. The identification information can then be used by
+Tcl scripts provided in a general-purpose Tcl package that
+can be reused between designs. For example, consider a user-defined
+JTAG-to-Avalon master bridge component. That component would
+be supplied along with a Tcl package containing procedures for
+performing Avalon bus read and write transactions.
+The \verb+SLD_NODE_INFO+ command can be used to identify the
+index of an \verb+sld_virtual_jtag+ instance within a design,
+but it can not provide information on what that component
+is used to implement. A design-specific Tcl script could be
+written that provides Avalon read and write transaction to say
+instance index zero, however, this does not allow for design reuse
+(other than by copying the Tcl script). The issue of component
+identification becomes more difficult when a design is created
+with SOPC Builder, because when the \verb+sld_virtual_jtag+ components
+use automatic instance indexing, the component indexes
+change depending on the order of components in the generated
+SOPC system (an ordering that the user can not easily control).
+
+Altera gets around this identification issue by using the
+\verb+sld_virtual_jtag_basic+ component to implement the
+\verb+sld_virtual_jtag+ and JTAG-to-Avalon bridge components with
+unique identification information. The Altera Tcl procedures
+then check that identification information before generating
+component-specific JTAG transactions. A custom user component
+could be built using the \verb+sld_virtual_jtag_basic+ component,
+however, as discussed in Section~\ref{sec:multiple_sld_tests},
+if you change the  Virtual JTAG component identification code, 
+the Virtual JTAG Tcl procedures no longer work. The Virtual
+JTAG Tcl procedures hide the complexities of virtual instruction 
+encoding from the user, and it would be useful to preserve this 
+functionality (rather than re-implement it using the low-level JTAG
+Tcl IR-shift and DR-shift procedures). Hence, a custom 
+Virtual JTAG component should be implemented using
+the \verb+sld_virtual_jtag+ component.
+
+% -----------------------------------------------------------------
+% altera_vjtag generics
+% -----------------------------------------------------------------
+%
+\begin{table}[t]
+\caption{General-purpose identifiable Virtual JTAG component, {\tt altera\_vjtag}, generics.}
+\label{fig:altera_vjtag_generics}
+\begin{center}
+\begin{tabular}{|l|p{8cm}|}
+\hline
+Generic & Description\\
+\hline\hline
+\multicolumn{2}{|l|}{\bf User Interface Parameters:}\\
+\hline
+&\\
+\verb+UIR_WIDTH+  & User instruction width.\\
+&\\
+\hline
+\multicolumn{2}{|l|}{\bf Identification Parameters:}\\
+\hline
+&\\
+\verb+VID+           & 16-bit Vendor ID (VID) code.\\
+\verb+PID+           & 16-bit Product ID (PID) code.\\
+\verb+VERSION+       & 16-bit Version.\\
+\verb+NODE_INDEX+    & The node index (reported by \verb+SLD_NODE_INFO+).\\
+&\\
+\hline
+\multicolumn{2}{|l|}{\bf Simulation Parameters:}\\
+\hline
+&\\
+\verb+MAX_SLD_IR_WIDTH+ & Maximum value of \verb+SLD_IR_WIDTH+.\\
+\verb+NUMBER_OF_NODES+  & Number of Virtual JTAG nodes.\\
+&\\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+% -----------------------------------------------------------------
+
+% -----------------------------------------------------------------
+% altera_vjtag block diagram
+% -----------------------------------------------------------------
+%
+\begin{figure}[p]
+  \centering
+  \includegraphics[width=\textwidth]
+  {figures/altera_vjtag_diagram.pdf}
+  \caption{General-purpose identifiable Virtual JTAG component, {\tt altera\_vjtag}.
+  The diagram shows a component instance with a user-defined instruction
+  width, {\tt UIR\_WIDTH}, of 4. The internal implementation instantiates
+  a Virtual JTAG component with an {\tt SLD\_IR\_WIDTH} of 5. The most
+  significant bit of the instruction register, {\tt ir\_in[4]}, is defined
+  to be the {\tt user} mode select bit; when {\tt user} is high the user 
+  TDO, {\tt user\_tdo}, drives the JTAG TDO signal, but when 
+  {\tt user} is low the identification TDO, {\tt id\_tdo}, drives the JTAG 
+  TDO signal, with {\tt ir\_in[1:0]} selecting the identification register.
+  The internal shift-register load and shift control signals only assert
+  when the corresponding virtual state signal asserts and {\tt user} is low. 
+  The external shift-register controls
+  {\tt dr\_capture}, {\tt dr\_shift}, and {\tt dr\_update} only assert  
+  when the corresponding virtual state signal asserts and {\tt user} is high.}
+  \label{fig:altera_vjtag_diagram}
+\end{figure}
+% -----------------------------------------------------------------
+
+Figure~\ref{fig:altera_vjtag_diagram} shows a block diagram of the
+\verb+altera_vjtag+ component which implements a general-purpose 
+identifiable Virtual JTAG component. The figure caption describes 
+the internal implementation of the component (the VHDL source code
+can be reviewed for more details). Table~\ref{fig:altera_vjtag_generics}
+describes the generics used to configure the component.
+
+Auto-detection of components based on the \verb+altera_vjtag+ component
+proceeds as follows;
+%
+\begin{enumerate}
+\item For each instance of the \verb+sld_virtual_jtag+ component identified
+by \verb+SLD_NODE_INFO+, issue a virtual user instruction of zero.
+This sets the \verb+ir_in[]+ port to all zeros, i.e., \verb+user+ low,
+so that the identification registers are selected in the component JTAG chain.
+\item Read the 16-bit Vendor ID using a 16-bit Virtual DR-shift.
+\item If the Vendor ID code is recognized, then issue virtual user
+instructions of 1, 2, and 3, and use 16-bit Virtual DR-shifts to read
+the other identification registers.
+\item Select the user registers by setting the \verb+user+ instruction bit 
+high. The position of this bit is determined from the value read from
+the \verb+SLD_IR_WIDTH+ identification register, i.e.,\newline
+\verb+user = ir_in[SLD_IR_WIDTH-1]+.
+\item Perform further device specific register accesses.
+\item Enable the use of component-specific Tcl procedures with this
+instance index.
+\end{enumerate}
+%
+A key aspect of the identification encoding scheme is to use the
+\verb+user+ low value to select the identification registers.
+The position of the \verb+user+ bit within the instruction register
+is not known until the identification registers are read.
+The VIR $m$-width from the \verb+HUB_INFO+ instruction can not
+be used for this purpose, since that value represent the
+{\em maximum} value of \verb+SLD_IR_WIDTH+ used in all component
+instances within a design, not the specific instance of the
+\verb+altera_vjtag+ component.
+
+Another subtle aspect of the \verb+altera_vjtag+ component is the
+use of the virtual state signals; the use of the capture and shift
+states is fairly obvious, but the use of \verb+virtual_state_e1dr+
+to generate the update pulse is less so. The reason this signal
+is used, rather than the \verb+virtual_state_udr+ signal, is that
+\verb+virtual_state_e1dr+ is pulsed for one JTAG clock period 
+following the DR-shift sequence, whereas \verb+virtual_state_udr+ 
+goes high, and stays high because once the JTAG TAP controller
+reaches that state, the external JTAG controller stops generating
+the JTAG clock, eg., see the JTAG and Virtual JTAG state
+assertions in Figure~\ref{fig:altera_sld_vjtag_shift_dr_tb}.
+
+The testbench \verb+altera_vjtag_tb+ instantitates the testcase
+\verb+altera_vjtag_tc+, the JTAG BFM server, and an instance
+of the \verb+altera_vjtag+ component with its user instruction
+register looped-back on itself, and user TDO fed by a signal
+that toggles every falling edge of TCK.
+The testcase generator demonstrates the component identification
+sequence, and demonstrates the use of VHDL assertions for
+verification. This testbench can be used
+as the basis for any custom \verb+altera_vjtag+ component. 
+Section~\ref{sec:examples} contains additional example applications
+of the \verb+altera_vjtag+ component.
+
+
+\vskip10mm
+\noindent {\bf TODO:}
+\begin{itemize}
+\item Tcl package for the core commands for this component, eg.,
+\verb+package require vjtag+. Create a version of \verb+print_identification+
+that loops over all nodes within a design. Create an example test
+design containing identifiable and non-identifiable \verb+sld_virtual_jtag+ components.
+\item Get the \verb+altera_vjtag+-based JTAG-to-Avalon bridge working and documented.
+\end{itemize}
+
+\clearpage
+% =================================================================
+\section{Design Examples}
+% =================================================================
+\label{sec:examples}
+
+This section contains synthesizeable Virtual JTAG example
+designs.
+
+Mention the DE2 board \verb+sld_virtual_jtag+ based designs,
+and the DE2 \verb+altera_vjtag+ design.
+
+Clock-domain crossing example.
+
+Provide a couple of basic examples, and then example traces
+from a custom JTAG-to-Avalon master. Then just refer the
+reader to my Avalon document.
+
+Tcl GUI to control the DE2 board? Maybe save that for use with
+the JTAG-to-Avalon bridge.
+
+How fast is TCK on the DE2 board? How about on the BeMicro?
+
+Actually, what examples did I try on the BeMicro? Did I check
+them into CVS? Didn't I use the VHDL keep signals attributes
+in the example design?
+
+External TCK/TMS/TDI/TDO signal capture - route to GPIO pins
+on something (S4GXDK) and trace VIR sequences.
+
+
+% -----------------------------------------------------------------
+\subsection{User Guide Examples}
+% -----------------------------------------------------------------
+
+Review the user guide examples; DCFIFO and a read-only timestamp 
+or ID - right? The example was lame in that you'd want that
+register to be read via JTAG or onboard processor, so really
+the interface should be an Avalon Master.
+
+Create a simulation version of the examples? Did they include
+clock domain synchronizers?
+
+% -----------------------------------------------------------------
+\subsection{LED control and switch status}
+% -----------------------------------------------------------------
+
+The DE2 project connects the Virtual instruction output port to
+the red and green LEDs, and the Virtual instruction
+input port to the switches. The LEDs on the board can be
+illuminated, and the switch state read-back, via the sequence;
+%
+\begin{verbatim}
+tcl> jtag_open
+JTAG: USB-Blaster [USB-0], FPGA: @1: EP2C35 (0x020B40DD)
+tcl> device_lock -timeout 10000
+tcl> device_virtual_ir_shift -instance_index 0 -ir_value 7
+5
+tcl> device_unlock
+tcl> jtag_close
+\end{verbatim}
+%
+where since the Virtual instruction width on the JTAG instance
+was set to 3-bits, three of the red and green LEDs are illuminated
+by this instruction. The 3-bit switch state read-back was
+5, i.e., two switches were on and one was off. The \verb+de2.vhd+
+file contains a \verb+VIR_WIDTH+ parameter that can be set from
+1 to 32-bits (per the limits on this value imposed by the
+Virtual JTAG component). The LEDs and switches will be wired
+according to the \verb+VIR_WIDTH+ (until all LEDs and switches
+have been connected).
+
+% -----------------------------------------------------------------
+\subsection{Control and status register}
+% -----------------------------------------------------------------
+
+Simple JTAG component applications.
+
+Using an \verb+sld_virtual_jtag+ component without additional
+logic; connect \verb+ir_in+ to outputs, eg. LEDs, and \verb+ir_out+
+to inputs, eg., switches. Or if you want write/read bits connect
+\verb+ir_in+ bits to the LED, and connect it to \verb+ir_out+
+for read-back.
+
+\verb+de2/cyclone2/sld_vjtag_to_gpio/+ already shows an example
+of this approach.
+
+% -----------------------------------------------------------------
+\subsection{Read/write registers block}
+% -----------------------------------------------------------------
+
+Draw a nice version of my read/write registers block figure.
+Point out that the write-enable decoding disappears when
+the registers become read-only, and that is how the 
+\verb+altera_vjtag+ component identification registers
+works - create a figure for the read-only registers.
+
+SignalTap II trace of register accesses?
+
+Timing analysis; really needs to use an FPGA clock. Eg.
+synchronize the \verb+virtual_jtag_uir+ to the FPGA
+clock via a pulse synchronizer, use that synchronizer
+to enable an address register, and register the output
+of the registers block. Then you can apply a timing
+constraint on the FPGA clock domain and cut paths to
+the JTAG interface.
+
+% -----------------------------------------------------------------
+\subsection{Clock and reset checking}
+% -----------------------------------------------------------------
+
+Connect the clock or reset for a design in the TDO path and
+perform a Virtual DR-shift operation of say 32-bits. If
+the value read back is all zeros or ones, then the signal
+is at a static level, otherwise its toggling.
+
+% -----------------------------------------------------------------
+\subsection{Clock-domain crossing}
+% -----------------------------------------------------------------
+
+
+\verb+de2/altera_vjtag/+ just uses a single clock domain,
+that of JTAG. Extend this example to be able to read the state
+of the reset control (one of the keys) and to read the clock
+(\verb+clk_50MHz+), or use my pulse-count logic, eg. toggle a signal
+using JTAG, and see if the counter enabled by that signal
+increments. If it does, and the count is fairly large
+(consistent with the expected clock frequency) then there is a
+clock present. Also try the simple 'read the clock value'
+approach to detect if its toggling.
+
+% -----------------------------------------------------------------
+\subsection{Address and data bus interface}
+% -----------------------------------------------------------------
+
+\verb+vjtag_to_registers_bridge+ Like my VJTAG component.
+
+Encode \verb+ADDR_WIDTH+, \verb+BYTEEN_WIDTH+,
+\verb+DATA_WIDTH+ in some read-only registers, then provide a
+control/status register (or at least locations for them for
+the test examples), eg. a 32-bit read/write control register
+and a 32-bit read-only status register. I'd then use the
+same scheme for my Avalon bridge (but restrict bus parameter
+values to those in the Avalon specification, eg. 8-bit increments).
+The control register will need a bit to indicate whether the
+transaction is a read or write. Add another control bit that
+determines the addressing scheme; fixed address or automatic address
+increment. The address control bit will allow you to write a start
+address (which will load a counter), and then write data
+to increasing addresses, and similar for reads (saves on
+JTAG activity). I'm not sure if I have enough JTAG clocks
+to make this work, so perhaps only implement it for the
+bridge that uses two clocks. Now that I have a simulation
+model, I can figure out whether this will work with just
+the JTAG clock.
+
+Refer to the Avalon bridges, but stick them in my Avalon document:
+\verb+vjtag_to_avalon_mm_bridge+,
+\verb+vjtag_to_avalon_st_bridge+,
+JTAG-to-Avalon Bridges done right, i.e., you can simulate with them.
+The Altera JTAG-to-Avalon bridge can only be simulated using
+Verilog PLI and the system console, and that interface is
+unsupported and barely documented (the Altera Wiki has instructions
+on what to do).
+
+% -----------------------------------------------------------------
+\subsection{Dual-port RAM test}
+% -----------------------------------------------------------------
+
+Assuming the RAM clock is faster than the JTAG clock, then
+the fact that when the RAM read data takes a couple of clocks
+before it is valid is generally acceptable. Eg. RAM address,
+byte-enable, asserted, and then by the time the read command
+is decoded from the JTAG interface, the read data has been
+valid for ages. However, the RAM clock could be made so slow
+that this is violated. When accessing a device that can take
+a while to response, some form of read-data-ready status
+register bit is required.
+
+\verb+de2/cyclone2/vjtag_ram_example/+
+
+% -----------------------------------------------------------------
+\subsection{Dual-clock FIFO test}
+% -----------------------------------------------------------------
+
+Same deal as with RAM, but the JTAG address space is slit to
+decode to the FIFO input or output. The FIFO status signals
+can be routed to a read-only status register location.
+The FIFO can be operated in dual clock mode, and as long
+as those clocks are faster then the JTAG clock, the JTAG
+interface will work fine. You can write to the FIFO while
+monitoring the used value and the FIFO status outputs, and
+the drain the FIFO. Write a simulation and synthesis test.
+
+\verb+de2/cyclone2/vjtag_fifo_example/+
+
+\clearpage
+% =================================================================
+% Appendices
+% =================================================================
+\appendix
+% -----------------------------------------------------------------
+\section{Altera Tool Versions}
+% -----------------------------------------------------------------
+
+Quartus 9.1, Quartus 10.1, Modelsim SE 6.5b (full version),
+Modelsim Altera-Edition (use both the versions expected to
+be used with Quartus 9.1 and 10.1).
+
+Tcl scripts create version specific build directories so
+all these tools can be installed at the same time, and all
+the build examples can exist at the same time.
+
+% -----------------------------------------------------------------
+\section{Source Code Description}
+% -----------------------------------------------------------------
+\label{app:source_code}
+
+VHDL and Tcl source.
+
+Describe the use of the synthesis scripts for building a 
+board design.
+
+Describe the use of a simulation script for setting up
+procedures that run a simulation.
+
+List the project names and folders - a table perhaps with
+a description of each project?
+
+Describe how to create a new DE2 project, by copying the
+DE2 \verb+basic+ design.
+
+
+%
+\begin{itemize}
+\item New project folders were created in the DE2 board
+project directory, i.e.,
+
+\begin{tabular}{ll}
+\verb+$VHDL/boards/de2/cyclone2/sld_virtual_jtag/+ & Project folder\\
+\verb+$VHDL/boards/de2/cyclone2/sld_virtual_jtag/src/+ & VHDL source\\
+\verb+$VHDL/boards/de2/cyclone2/sld_virtual_jtag/test/+ & VHDL testbench\\
+\verb+$VHDL/boards/de2/cyclone2/sld_virtual_jtag/scripts/+ & Scripts\\
+\end{tabular}
+%
+\item The top-level VHDL file and synthesis
+script were copied from the \verb+basic+ design, i.e.,
+
+\verb+$VHDL/boards/de2/cyclone2/sld_virtual_jtag/src/de2.vhd+\\
+\verb+$VHDL/boards/de2/cyclone2/sld_virtual_jtag/scripts/synth.tcl+.
+\end{itemize}
+
+The \verb+basic+ design contains a VHDL entity with
+ports for all the pins used on the DE2 board, along with
+a basic architecture body that connects switches to hexadecimal
+displays and deasserts control signals to external devices.
+%
+
+
+% -----------------------------------------------------------------
+\section{JTAG Timing Constraints (TimeQuest SDC)}
+% -----------------------------------------------------------------
+
+Check the Cyclone II and II databooks, I'm sure that JTAG signals
+are supposed to be clocked like SPI, i.e., data changes on the
+falling-edge of the clock, and is captured on the rising-edge.
+Comment that the logic analyzer
+traces show this is not the case. Screen shots showing the
+SDC timing constraints for JTAG. What is the timing margin
+on the signals? 
+
+Create a generic JTAG script. How can the script determine if the
+JTAG signals have been used? You should be able to look for signals
+and then if they are found in the design, apply a constraint.
+
+Point out that Altera's SDC examples for JTAG are not consistent
+with the falling-edge clocking.
+
+How about their STAPL documentation, how does that say the
+JTAG signals should be clocked? Look at my Byteblaster and
+COBRA example code. What did DaveM do in the CARMA code?
+
+
+\clearpage
+%------------------------------------------------------------------
+% Do the bibliography
+%------------------------------------------------------------------
+%Note, you can't have spaces in the list of bibliography files
+%
+\bibliography{refs}
+\bibliographystyle{plain}
+
+%------------------------------------------------------------------
+\end{document}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
